@@ -21,10 +21,13 @@ from langgraph.graph.state import CompiledStateGraph
 
 from copilotkit import CopilotKitMiddleware
 
+from .review_state import ReviewStateMiddleware
 from .timing import TimingMiddleware
 
 
 RuntimeName = Literal[
+    "openai-react",
+    "gemini-pro-react",
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
@@ -33,6 +36,8 @@ RuntimeName = Literal[
 
 
 _VALID_RUNTIMES = (
+    "openai-react",
+    "gemini-pro-react",
     "gemini-flash-deep",
     "gemini-flash-react",
     "claude-sonnet-4-6-react",
@@ -70,17 +75,22 @@ def build_graph(
     if runtime not in _VALID_RUNTIMES:
         print(
             f"[runtime] WARN: unknown AGENT_RUNTIME={runtime!r}; "
-            f"falling back to gemini-flash-deep",
+            f"falling back to openai-react",
             flush=True,
         )
-        runtime = "gemini-flash-deep"
+        runtime = "openai-react"
 
     timing = TimingMiddleware()
+    review_state = ReviewStateMiddleware()
     copilotkit = CopilotKitMiddleware()
-    middleware = [timing, copilotkit]
+    middleware = [timing, review_state, copilotkit]
 
     if runtime == "noop":
         return _build_noop(NOOP_FALLBACK_MESSAGE)
+    if runtime == "openai-react":
+        return _build_openai_react(tools, system_prompt, middleware)
+    if runtime == "gemini-pro-react":
+        return _build_gemini_pro_react(tools, system_prompt, middleware)
     if runtime == "gemini-flash-deep":
         return _build_gemini_deep(tools, system_prompt, middleware)
     if runtime == "gemini-flash-react":
@@ -137,7 +147,83 @@ def _build_noop(message: str) -> CompiledStateGraph:
     return graph.compile()
 
 
+# --------------------------------------------------------------------- openai
+
+def _build_openai_react(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """Single-agent runtime on OpenAI.
+
+    Default model is `gpt-5` — overridable via OPENAI_MODEL.
+    Same single-agent design as gemini-pro-react: one model orchestrates
+    the loop AND scores hunks inline. No separate scoring service.
+    """
+    from langchain.agents import create_agent
+    from langchain_openai import ChatOpenAI
+
+    api_key = os.getenv("OPENAI_API_KEY") or ""
+    if not api_key:
+        print(
+            "\n  OPENAI_API_KEY is unset.\n"
+            "   The agent will boot but the first chat turn will fail with an\n"
+            "   auth error. Set OPENAI_API_KEY in agent/.env.\n",
+            flush=True,
+        )
+
+    model = os.getenv("OPENAI_MODEL", "gpt-5")
+    llm = ChatOpenAI(
+        model=model,
+        temperature=0,
+        api_key=api_key or "stub",
+    )
+    return create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
+
 # --------------------------------------------------------------------- gemini
+
+def _gemini_pro_llm():
+    """Build the Gemini 2.5 Pro chat model.
+
+    Single-LLM runtime: this same model both orchestrates the loop AND
+    does per-hunk scoring inline. Default is `gemini-2.5-pro` because
+    `gemini-3-pro-preview` is paid-tier only (free-tier limit=0).
+    Override with GEMINI_MODEL if you have paid-tier access.
+    """
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "stub"
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-pro")
+    return ChatGoogleGenerativeAI(
+        model=model,
+        temperature=0,
+        api_key=api_key,
+    )
+
+
+def _build_gemini_pro_react(
+    tools: list, system_prompt: str, middleware: list
+) -> CompiledStateGraph:
+    """Default: Gemini 3 Pro on the plain `create_agent` factory.
+
+    Skips deepagents (planner overhead unjustified for 4 tools + a fixed
+    core loop) and skips a separate scoring service (Pro reasons over
+    the diff itself, then emits structured scores via the frontend
+    setScores tool).
+    """
+    from langchain.agents import create_agent
+
+    return create_agent(
+        model=_gemini_pro_llm(),
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+    )
+
 
 def _gemini_llm():
     """Build the configured Gemini Flash-Lite chat model.
