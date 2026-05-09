@@ -15,7 +15,13 @@ import { ThreadsDrawer } from "@/components/threads-drawer";
 import drawerStyles from "@/components/threads-drawer/threads-drawer.module.css";
 import { ToolFallbackCard } from "@/components/copilot/ToolFallbackCard";
 
-import type { AgentState, Lens, ScoringStatus } from "@/lib/review/types";
+import type {
+  AgentState,
+  DiffHunk,
+  Lens,
+  PerHunkScore,
+  ScoringStatus,
+} from "@/lib/review/types";
 import { initialState, emptyUI } from "@/lib/review/state";
 import { LENS_PRESETS } from "@/lib/review/lenses";
 import { orderHunksByImportance, shouldExpandHunk } from "@/lib/review/derive";
@@ -129,7 +135,7 @@ function CanvasInner({ prUrl }: { prUrl: string | null }) {
         scores: prev.scores ? { ...prev.scores, status: "scoring" } : null,
       }));
       injectPrompt(
-        `Re-score the demo PR under the ${lens.name} lens (lens id: ${lens.id}).`,
+        `Re-score this PR under the ${lens.name} lens (lens id: ${lens.id}).`,
       );
     },
     [updateState, injectPrompt],
@@ -150,17 +156,27 @@ function CanvasInner({ prUrl }: { prUrl: string | null }) {
     [updateState],
   );
 
-  const handleSelectHunk = useCallback(
-    (hunkId: string) => {
+  const handleDrillIn = useCallback(
+    (file: string, hunk: DiffHunk, score: PerHunkScore | null) => {
       updateState((prev) => ({
         ...prev,
         ui: {
           ...prev.ui,
-          selectedHunkId: prev.ui.selectedHunkId === hunkId ? null : hunkId,
+          selectedHunkId: hunk.hunk_id,
+          expandedFiles: prev.ui.expandedFiles.includes(file)
+            ? prev.ui.expandedFiles
+            : [...prev.ui.expandedFiles, file],
         },
       }));
+      const lensName = state.lens?.name ?? "current";
+      const scoreLine = score
+        ? `currently scored ${score.score.toFixed(1)} (reason: ${score.reasons})`
+        : "unscored";
+      injectPrompt(
+        `Drill into hunk \`${hunk.hunk_id}\` in \`${file}\` (header: \`${hunk.header}\`). It is ${scoreLine} under the ${lensName} lens. In 3-5 sentences, explain which exact lines drive that score, what a reviewer should look for here, and what could go wrong if this isn't carefully reviewed. Reply in chat only — do NOT call any tools.`,
+      );
     },
-    [updateState],
+    [updateState, injectPrompt, state.lens],
   );
 
   // ---- Derived view -------------------------------------------------------
@@ -248,7 +264,7 @@ function CanvasInner({ prUrl }: { prUrl: string | null }) {
                         expanded={expanded}
                         selected={state.ui.selectedHunkId === hunk.hunk_id}
                         onToggle={() => handleToggleHunk(file)}
-                        onSelect={() => handleSelectHunk(hunk.hunk_id)}
+                        onDrillIn={() => handleDrillIn(file, hunk, score)}
                       />
                     </li>
                   );

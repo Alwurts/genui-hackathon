@@ -8,7 +8,7 @@ interface Props {
   expanded: boolean;
   selected: boolean;
   onToggle: () => void;
-  onSelect: () => void;
+  onDrillIn: () => void;
 }
 
 const BUCKET_BADGE: Record<"high" | "med" | "low", string> = {
@@ -24,7 +24,7 @@ export function HunkCard({
   expanded,
   selected,
   onToggle,
-  onSelect,
+  onDrillIn,
 }: Props) {
   const bucket = score ? scoreBucket(score.score) : "low";
   return (
@@ -54,7 +54,7 @@ export function HunkCard({
         </span>
         <button
           type="button"
-          onClick={onSelect}
+          onClick={onDrillIn}
           className="shrink-0 rounded border border-border px-2 py-0.5 text-[10px] hover:border-foreground"
         >
           Drill in
