@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Lens — PR review, your way</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.13 0 0);
+  --card: oklch(0.97 0 0);
+  --card-elev: oklch(0.94 0 0);
+  --muted: oklch(0.92 0 0);
+  --muted-foreground: oklch(0.50 0 0);
+  --border: oklch(0 0 0 / 8%);
+  --border-strong: oklch(0 0 0 / 14%);
+  --primary: oklch(0.13 0 0);
+  --primary-foreground: oklch(0.99 0 0);
+  --accent: oklch(0.52 0.18 250);
+  --success: oklch(0.48 0.16 150);
+  --warning: oklch(0.55 0.16 75);
+  --danger: oklch(0.52 0.22 25);
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
+  font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
+  overflow: hidden;
+}
+.mono { font-family: 'Geist Mono', ui-monospace, monospace; }
+
+/* ─── App shell ─── */
+.app { display: grid; grid-template-rows: 52px 1fr; height: 100vh; }
+.topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -0.01em; }
+.brand-dot { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, oklch(0.7 0.18 250), oklch(0.65 0.22 290)); }
+.topbar-spacer { flex: 1; }
+.crumbs { color: var(--muted-foreground); font-size: 13px; }
+.crumbs span { color: var(--foreground); }
+
+/* ─── Buttons / chips ─── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); color: var(--foreground);
+  font: inherit; font-size: 13px; cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.btn:hover { background: var(--card-elev); border-color: var(--border-strong); }
+.btn.primary { background: var(--primary); color: var(--primary-foreground); border-color: transparent; font-weight: 500; }
+.btn.primary:hover { opacity: 0.9; }
+.btn.ghost { background: transparent; }
+.btn.danger { background: transparent; color: var(--danger); border-color: oklch(0.65 0.22 25 / 0.3); }
+.btn.success { background: transparent; color: var(--success); border-color: oklch(0.7 0.16 150 / 0.3); }
+.btn.sm { height: 26px; padding: 0 10px; font-size: 12px; }
+.icon-btn {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); color: var(--muted-foreground); cursor: pointer;
+}
+.icon-btn:hover { background: var(--card-elev); color: var(--foreground); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 26px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--card); color: var(--muted-foreground);
+  font-size: 12px; cursor: pointer; user-select: none;
+  transition: all 120ms;
+}
+.chip:hover { color: var(--foreground); border-color: var(--border-strong); }
+.chip.active { background: var(--foreground); color: var(--background); border-color: var(--foreground); font-weight: 500; }
+.chip.muted { opacity: 0.45; text-decoration: line-through; }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted-foreground); }
+.chip.active .chip-dot { background: var(--background); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 7px;
+  border-radius: 4px;
+  font-size: 11px; font-weight: 500;
+  background: var(--muted); color: var(--muted-foreground);
+}
+.badge.security { background: oklch(0.94 0.06 25); color: oklch(0.42 0.2 25); }
+.badge.db       { background: oklch(0.93 0.05 250); color: oklch(0.38 0.16 250); }
+.badge.backend  { background: oklch(0.93 0.05 150); color: oklch(0.36 0.14 150); }
+.badge.frontend { background: oklch(0.94 0.06 75); color: oklch(0.40 0.14 75); }
+.badge.tests    { background: oklch(0.93 0.05 290); color: oklch(0.38 0.16 290); }
+.badge.docs     { background: var(--muted); color: var(--muted-foreground); }
+.badge.infra    { background: oklch(0.93 0.04 200); color: oklch(0.36 0.12 200); }
+.badge.perf     { background: oklch(0.93 0.05 320); color: oklch(0.40 0.16 320); }
+
+/* ─── Lens select ─── */
+.lens-select {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 30px; padding: 0 6px 0 12px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); cursor: pointer; font-size: 13px;
+}
+.lens-select:hover { background: var(--card-elev); }
+.lens-select .lens-tag {
+  height: 22px; padding: 0 8px; border-radius: 4px;
+  background: var(--accent); color: white; font-size: 11px; font-weight: 500;
+  display: inline-flex; align-items: center;
+}
+.profile {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, oklch(0.62 0.18 250), oklch(0.65 0.22 290));
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+
+/* ─── Views ─── */
+.view { height: 100%; overflow: hidden; }
+.view.hidden { display: none; }
+
+/* Dashboard */
+.dashboard { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 16px 12px; overflow-y: auto;
+}
+.sidebar h4 {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted-foreground); margin: 16px 8px 6px; font-weight: 500;
+}
+.sidebar h4:first-child { margin-top: 0; }
+.side-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 8px; border-radius: var(--radius-sm);
+  font-size: 13px; cursor: pointer; color: var(--muted-foreground);
+}
+.side-item:hover { background: var(--card); color: var(--foreground); }
+.side-item.active { background: var(--card); color: var(--foreground); }
+.side-item .count { font-size: 11px; opacity: 0.7; }
+
+.main { overflow-y: auto; padding: 24px 32px; }
+.page-head { display: flex; align-items: end; justify-content: space-between; margin-bottom: 20px; }
+.page-head h1 { font-size: 22px; letter-spacing: -0.02em; font-weight: 600; }
+.page-head p { color: var(--muted-foreground); margin-top: 2px; font-size: 13px; }
+.search {
+  display: flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--card); width: 280px;
+}
+.search input { background: transparent; border: 0; outline: 0; color: var(--foreground); font: inherit; flex: 1; font-size: 13px; }
+.search input::placeholder { color: var(--muted-foreground); }
+
+.pr-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.pr-row {
+  display: grid; grid-template-columns: auto 1fr auto auto auto;
+  gap: 16px; align-items: center;
+  padding: 14px 18px;
+  background: var(--background);
+  cursor: pointer;
+  transition: background 120ms;
+}
+.pr-row:hover { background: var(--card); }
+.pr-status { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+.pr-status.draft { background: var(--muted-foreground); }
+.pr-status.review { background: var(--warning); }
+.pr-meta-line { display: flex; align-items: center; gap: 8px; }
+.pr-title { font-weight: 500; letter-spacing: -0.01em; }
+.pr-num { color: var(--muted-foreground); font-size: 12px; }
+.pr-sub { color: var(--muted-foreground); font-size: 12px; margin-top: 3px; display: flex; align-items: center; gap: 10px; }
+.pr-cats { display: flex; gap: 4px; }
+.pr-relevance {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted-foreground); min-width: 96px; justify-content: flex-end;
+}
+.relevance-bar { width: 56px; height: 4px; background: var(--muted); border-radius: 2px; overflow: hidden; }
+.relevance-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+.pr-concerns { font-size: 12px; color: var(--muted-foreground); min-width: 80px; text-align: right; }
+.pr-concerns .num { color: var(--warning); font-weight: 600; }
+
+/* PR detail */
+.detail { display: grid; grid-template-columns: 1fr; height: 100%; overflow: hidden; }
+.detail-scroll { overflow-y: auto; padding: 0 0 80px; position: relative; }
+.detail-head {
+  padding: 24px 32px 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--background); z-index: 10;
+}
+.back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 12px; cursor: pointer; margin-bottom: 12px; }
+.back-link:hover { color: var(--foreground); }
+.detail-title { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.detail-title h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.detail-title .num { color: var(--muted-foreground); font-weight: 400; }
+.detail-meta { display: flex; align-items: center; gap: 16px; color: var(--muted-foreground); font-size: 13px; }
+.detail-meta .author { display: inline-flex; align-items: center; gap: 6px; }
+.detail-meta .avatar { width: 18px; height: 18px; border-radius: 50%; background: linear-gradient(135deg, oklch(0.7 0.18 150), oklch(0.65 0.22 200)); }
+
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 14px 32px; border-bottom: 1px solid var(--border); align-items: center; }
+.chip-row .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); margin-right: 4px; }
+
+.lens-banner {
+  margin: 16px 32px 0; padding: 10px 14px;
+  background: oklch(0.94 0.04 250);
+  border: 1px solid oklch(0.52 0.18 250 / 0.2);
+  border-radius: var(--radius);
+  font-size: 12px; color: oklch(0.36 0.14 250);
+  display: flex; align-items: center; gap: 8px;
+}
+
+.section { margin: 16px 32px 0; }
+.section.collapsed .section-body { display: none; }
+.section-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer; user-select: none;
+}
+.section.collapsed .section-head { border-radius: var(--radius); }
+.section:not(.collapsed) .section-head { border-radius: var(--radius) var(--radius) 0 0; border-bottom: 0; }
+.section-head:hover { background: var(--card-elev); }
+.section-head .caret { color: var(--muted-foreground); transition: transform 150ms; }
+.section.collapsed .section-head .caret { transform: rotate(-90deg); }
+.section-head h3 { font-size: 13px; font-weight: 500; }
+.section-head .count { color: var(--muted-foreground); font-size: 12px; }
+.section-head .priority { margin-left: auto; font-size: 11px; color: var(--muted-foreground); }
+.section-head .priority.hot { color: var(--warning); }
+.section-body {
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: 14px;
+  background: var(--background);
+}
+
+.file-row {
+  display: grid; grid-template-columns: 1fr auto auto;
+  gap: 12px; align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.file-row:hover { background: var(--card); }
+.file-row .path { font-family: 'Geist Mono', monospace; font-size: 12px; }
+.file-row .stats { display: flex; gap: 8px; font-size: 11px; }
+.file-row .stats .add { color: var(--success); }
+.file-row .stats .del { color: var(--danger); }
+.note { color: var(--muted-foreground); font-size: 12px; padding: 6px 10px; }
+
+/* Inline agent component */
+.agent-component {
+  margin-top: 10px; padding: 14px;
+  background: linear-gradient(180deg, oklch(0.94 0.04 250), oklch(0.97 0.01 250));
+  border: 1px solid oklch(0.52 0.18 250 / 0.18);
+  border-radius: var(--radius);
+  position: relative;
+}
+.agent-component::before {
+  content: 'A2UI'; position: absolute; top: -9px; left: 12px;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  background: var(--background); color: oklch(0.38 0.16 250);
+  padding: 2px 6px; border-radius: 3px;
+  border: 1px solid oklch(0.52 0.18 250 / 0.25);
+}
+.agent-component h4 { font-size: 12px; margin-bottom: 8px; color: var(--muted-foreground); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Blast-radius Sankey */
+.sankey { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; position: relative; padding: 12px 0; }
+.sankey-col h5 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); margin-bottom: 8px; font-weight: 500; }
+.sankey-node {
+  padding: 7px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px; font-family: 'Geist Mono', monospace;
+  margin-bottom: 6px; cursor: pointer;
+  position: relative; z-index: 2;
+}
+.sankey-node:hover { border-color: var(--accent); background: var(--card-elev); }
+.sankey-node.hot { border-color: oklch(0.65 0.22 25 / 0.4); }
+.sankey-svg { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.sankey-svg path { fill: none; stroke: var(--accent); stroke-opacity: 0.25; }
+.sankey-svg path.hot { stroke: var(--danger); stroke-opacity: 0.35; }
+
+/* Ownership card */
+.owner-card { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.owner-card .av { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, oklch(0.6 0.2 30), oklch(0.7 0.18 60)); }
+.owner-card .meta { flex: 1; }
+.owner-card .name { font-size: 13px; font-weight: 500; }
+.owner-card .role { color: var(--muted-foreground); font-size: 12px; }
+
+/* Decision summary (sticky) */
+.decision {
+  position: sticky; bottom: 0;
+  margin: 24px 32px 0;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; gap: 16px;
+  box-shadow: 0 -8px 24px oklch(0 0 0 / 0.08);
+}
+.decision .stats { display: flex; gap: 18px; font-size: 13px; flex: 1; }
+.decision .stats span { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); }
+.decision .stats b { color: var(--foreground); }
+.decision .actions { display: flex; gap: 8px; }
+
+/* ─── Chat dock ─── */
+.dock {
+  position: fixed; bottom: 16px; right: 16px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+  z-index: 50;
+}
+.dock-tabs { display: flex; gap: 6px; }
+.dock-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 999px; font-size: 12px; cursor: pointer;
+  font-family: 'Geist Mono', monospace;
+}
+.dock-tab:hover { background: var(--card-elev); }
+.dock-tab.active { background: var(--foreground); color: var(--background); border-color: var(--foreground); }
+.dock-tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-foreground); }
+.dock-tab .dot.idle { background: var(--muted-foreground); }
+.dock-tab .dot.processing { background: var(--accent); animation: pulse 1.4s infinite; }
+.dock-tab .dot.unread { background: var(--warning); }
+.dock-tab .dot.resolved { background: var(--success); }
+.dock-tab .close { opacity: 0.4; margin-left: 2px; }
+.dock-tab .close:hover { opacity: 1; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.dock-fab {
+  width: 48px; height: 48px;
+  background: var(--foreground); color: var(--background);
+  border-radius: 50%; border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: 0 6px 18px oklch(0 0 0 / 0.15);
+}
+.dock-fab:hover { transform: translateY(-1px); }
+
+.chat {
+  width: 400px; height: 560px; max-height: 80vh;
+  background: var(--background);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px oklch(0 0 0 / 0.12);
+  overflow: hidden;
+}
+.chat-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.chat-head .ctx { flex: 1; }
+.chat-head .ctx-pr { font-size: 11px; color: var(--muted-foreground); font-family: 'Geist Mono', monospace; }
+.chat-head .ctx-title { font-size: 13px; font-weight: 500; margin-top: 2px; }
+.chat-body {
+  flex: 1; overflow-y: auto;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 12px;
+}
+.msg { display: flex; gap: 8px; }
+.msg .av {
+  width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 600;
+}
+.msg.user .av { background: var(--muted); color: var(--foreground); }
+.msg.agent .av { background: linear-gradient(135deg, oklch(0.62 0.18 250), oklch(0.65 0.22 290)); color: white; }
+.msg .bubble {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px; line-height: 1.55;
+  max-width: 320px;
+}
+.msg.user .bubble { background: var(--card); border: 1px solid var(--border); }
+.msg.agent .bubble { background: transparent; padding: 0; }
+.msg.agent .bubble p { padding: 4px 0; }
+
+.msg-component {
+  margin-top: 6px;
+  border: 1px solid oklch(0.52 0.18 250 / 0.2);
+  background: oklch(0.95 0.03 250);
+  border-radius: var(--radius);
+  padding: 12px; position: relative;
+}
+.msg-component::before {
+  content: 'A2UI'; position: absolute; top: -8px; left: 10px;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.08em;
+  background: var(--background); color: oklch(0.38 0.16 250);
+  padding: 2px 5px; border-radius: 3px;
+}
+.msg-component h5 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); margin-bottom: 8px; font-weight: 500; }
+
+.risk-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; }
+.risk-item .level { width: 6px; height: 6px; border-radius: 50%; }
+.risk-item .level.high { background: var(--danger); }
+.risk-item .level.med  { background: var(--warning); }
+.risk-item .level.low  { background: var(--success); }
+
+.chat-input {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  display: flex; gap: 8px; align-items: flex-end;
+}
+.chat-input textarea {
+  flex: 1; resize: none;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground); font: inherit; font-size: 13px;
+  padding: 8px 10px; outline: 0;
+  min-height: 36px; max-height: 100px;
+}
+.chat-input textarea:focus { border-color: var(--accent); }
+.chat-input .send {
+  width: 36px; height: 36px;
+  background: var(--foreground); color: var(--background);
+  border: 0; border-radius: var(--radius); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+.chat-suggest {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 0 12px 10px;
+}
+.chat-suggest .sug {
+  font-size: 11px; padding: 5px 9px;
+  border: 1px solid var(--border); border-radius: 999px;
+  cursor: pointer; color: var(--muted-foreground); background: var(--card);
+}
+.chat-suggest .sug:hover { color: var(--foreground); border-color: var(--border-strong); }
+
+/* ─── Lens menu popover ─── */
+.popover {
+  position: absolute; top: 44px; right: 16px;
+  background: var(--card); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 6px;
+  min-width: 220px;
+  box-shadow: 0 12px 40px oklch(0 0 0 / 0.10);
+  z-index: 100;
+  display: none;
+}
+.popover.open { display: block; }
+.popover h6 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); padding: 6px 10px 4px; font-weight: 500; }
+.popover .opt {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px;
+}
+.popover .opt:hover { background: var(--card-elev); }
+.popover .opt.active { background: var(--card-elev); }
+.popover .opt .check { color: var(--accent); opacity: 0; }
+.popover .opt.active .check { opacity: 1; }
+.popover .opt .desc { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 10px; border: 2px solid var(--background); }
+::-webkit-scrollbar-thumb:hover { background: oklch(0 0 0 / 20%); }
+
+/* Animations */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.section, .agent-component, .msg { animation: slideIn 200ms ease-out; }
+
+@media (max-width: 880px) {
+  .dashboard { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .chat { width: calc(100vw - 32px); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ─── Topbar ─── -->
+  <header class="topbar">
+    <div class="brand"><div class="brand-dot"></div> Lens</div>
+    <div class="crumbs" id="crumbs">Inbox</div>
+    <div class="topbar-spacer"></div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input placeholder="Search PRs, files, owners…" />
+    </div>
+    <div class="lens-select" id="lensBtn" title="Switch lens">
+      <span style="color: var(--muted-foreground); font-size: 12px;">Viewing as</span>
+      <span class="lens-tag" id="lensTag">Backend</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <button class="icon-btn" title="Notifications">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    </button>
+    <div class="profile" title="iz">iz</div>
+  </header>
+
+  <!-- ─── Lens popover ─── -->
+  <div class="popover" id="lensPopover">
+    <h6>View as</h6>
+    <div class="opt active" data-lens="Backend">
+      <div><div>Backend</div><div class="desc">API, services, business logic</div></div>
+      <span class="check">✓</span>
+    </div>
+    <div class="opt" data-lens="Security">
+      <div><div>Security</div><div class="desc">Auth, secrets, vulnerabilities</div></div>
+      <span class="check">✓</span>
+    </div>
+    <div class="opt" data-lens="Database">
+      <div><div>Database</div><div class="desc">Schema, migrations, queries</div></div>
+      <span class="check">✓</span>
+    </div>
+    <div class="opt" data-lens="Frontend">
+      <div><div>Frontend</div><div class="desc">UI, components, accessibility</div></div>
+      <span class="check">✓</span>
+    </div>
+    <div class="opt" data-lens="QA">
+      <div><div>QA</div><div class="desc">Tests, coverage, regressions</div></div>
+      <span class="check">✓</span>
+    </div>
+    <div class="opt" data-lens="PM">
+      <div><div>PM</div><div class="desc">Scope, risk, ship readiness</div></div>
+      <span class="check">✓</span>
+    </div>
+  </div>
+
+  <!-- ─── Dashboard view ─── -->
+  <section class="view" id="dashView">
+    <div class="dashboard">
+      <aside class="sidebar">
+        <h4>Inbox</h4>
+        <div class="side-item active">Assigned to me <span class="count">7</span></div>
+        <div class="side-item">Mentioned <span class="count">3</span></div>
+        <div class="side-item">Authored <span class="count">2</span></div>
+        <div class="side-item">All open <span class="count">42</span></div>
+        <h4>Repos</h4>
+        <div class="side-item">genui-hackathon <span class="count">12</span></div>
+        <div class="side-item">api-gateway <span class="count">18</span></div>
+        <div class="side-item">web-app <span class="count">8</span></div>
+        <div class="side-item">data-pipeline <span class="count">4</span></div>
+        <h4>Filters</h4>
+        <div class="side-item">High relevance <span class="count">5</span></div>
+        <div class="side-item">Has security flags <span class="count">2</span></div>
+        <div class="side-item">Stale > 3d <span class="count">6</span></div>
+      </aside>
+      <main class="main">
+        <div class="page-head">
+          <div>
+            <h1>Pull requests</h1>
+            <p>7 awaiting your review · ordered by lens relevance</p>
+          </div>
+          <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg> Sort</button>
+        </div>
+        <div class="pr-list" id="prList"></div>
+      </main>
+    </div>
+  </section>
+
+  <!-- ─── PR detail view ─── -->
+  <section class="view hidden" id="detailView">
+    <div class="detail">
+      <div class="detail-scroll" id="detailScroll">
+        <div class="detail-head">
+          <div class="back-link" onclick="showDashboard()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+            Back to inbox
+          </div>
+          <div class="detail-title">
+            <h1 id="prTitle">Refactor session token storage to comply with new policy</h1>
+            <span class="num mono" id="prNum">api-gateway #2841</span>
+          </div>
+          <div class="detail-meta">
+            <span class="author"><span class="avatar"></span> mariadb-jules</span>
+            <span>opened 2 days ago</span>
+            <span>+1,284 −846 across 28 files</span>
+            <span class="badge security">2 security concerns</span>
+          </div>
+        </div>
+
+        <div class="lens-banner" id="lensBanner">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <span><b>Backend</b> lens active. Sections reordered: Backend API, Database, Tests are pinned to the top.</span>
+        </div>
+
+        <div class="chip-row" id="chipRow">
+          <span class="label">Filter</span>
+        </div>
+
+        <div id="sections"></div>
+
+        <div class="decision">
+          <div class="stats">
+            <span><b>3</b> concerns flagged</span>
+            <span><b style="color: var(--success)">2</b> resolved</span>
+            <span><b style="color: var(--warning)">1</b> open</span>
+            <span style="margin-left: auto;">Reviewed <b>6 of 8</b> sections</span>
+          </div>
+          <div class="actions">
+            <button class="btn">Comment</button>
+            <button class="btn danger">Request changes</button>
+            <button class="btn success">Approve</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ─── Chat dock ─── -->
+<div class="dock" id="dock">
+  <div id="chatPanel" style="display:none;"></div>
+  <div class="dock-tabs" id="dockTabs"></div>
+  <button class="dock-fab" id="fab" title="Open chat">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  </button>
+</div>
+
+<script>
+/* ────────── Data ────────── */
+const LENSES = ['Backend', 'Security', 'Database', 'Frontend', 'QA', 'PM'];
+const LENS_ORDER = {
+  Backend:  ['backend','database','tests','security','perf','frontend','infra','docs'],
+  Security: ['security','backend','database','infra','tests','perf','frontend','docs'],
+  Database: ['database','backend','perf','tests','security','infra','frontend','docs'],
+  Frontend: ['frontend','tests','perf','docs','backend','security','database','infra'],
+  QA:       ['tests','frontend','backend','security','database','perf','infra','docs'],
+  PM:       ['docs','frontend','backend','security','database','tests','perf','infra'],
+};
+
+const PRS = [
+  { id: 2841, repo: 'api-gateway', title: 'Refactor session token storage to comply with new policy', author: 'mariadb-jules', age: '2d', adds: 1284, dels: 846, files: 28, status: 'review',
+    cats: ['security','database','backend','tests'], concerns: 3, relevance: { Backend: 92, Security: 98, Database: 84, Frontend: 12, QA: 60, PM: 70 } },
+  { id: 4012, repo: 'web-app', title: 'New dashboard layout with collapsible PR cards', author: 'jerel.v', age: '5h', adds: 642, dels: 188, files: 14, status: 'open',
+    cats: ['frontend','tests','docs'], concerns: 1, relevance: { Backend: 18, Security: 8, Database: 4, Frontend: 96, QA: 78, PM: 55 } },
+  { id: 1198, repo: 'data-pipeline', title: 'Migrate events table to partitioned schema', author: 'sam.d', age: '1d', adds: 412, dels: 96, files: 9, status: 'review',
+    cats: ['database','backend','infra','perf'], concerns: 2, relevance: { Backend: 70, Security: 30, Database: 99, Frontend: 0, QA: 40, PM: 60 } },
+  { id: 2845, repo: 'api-gateway', title: 'Bump fastify, fix CVE-2025-1124 in dependency tree', author: 'dependabot', age: '3h', adds: 28, dels: 26, files: 3, status: 'open',
+    cats: ['security','backend'], concerns: 1, relevance: { Backend: 60, Security: 95, Database: 5, Frontend: 5, QA: 30, PM: 40 } },
+  { id: 4015, repo: 'web-app', title: 'Fix focus trap regression in modal on Safari', author: 'priya.k', age: '8h', adds: 41, dels: 22, files: 4, status: 'open',
+    cats: ['frontend','tests'], concerns: 0, relevance: { Backend: 4, Security: 2, Database: 0, Frontend: 88, QA: 92, PM: 30 } },
+  { id: 2839, repo: 'api-gateway', title: 'Introduce idempotency keys on /charge endpoint', author: 'kai.m', age: '1d', adds: 312, dels: 84, files: 11, status: 'review',
+    cats: ['backend','tests','docs','perf'], concerns: 1, relevance: { Backend: 94, Security: 50, Database: 30, Frontend: 8, QA: 70, PM: 65 } },
+  { id: 1199, repo: 'data-pipeline', title: 'Update README with new ingest pipeline diagram', author: 'lina.p', age: '6h', adds: 88, dels: 12, files: 1, status: 'draft',
+    cats: ['docs'], concerns: 0, relevance: { Backend: 5, Security: 0, Database: 8, Frontend: 0, QA: 8, PM: 80 } },
+];
+
+const CATEGORIES = {
+  security: { label: 'Security',     files: [{p:'src/auth/session.ts',a:84,d:62},{p:'src/auth/cookie.ts',a:42,d:30},{p:'src/middleware/csrf.ts',a:18,d:8}], priority: 'hot' },
+  database: { label: 'Database',     files: [{p:'migrations/0042_session_tokens.sql',a:38,d:0},{p:'src/db/sessions.repo.ts',a:140,d:96}], priority: 'hot' },
+  backend:  { label: 'Backend API',  files: [{p:'src/routes/login.ts',a:64,d:48},{p:'src/routes/logout.ts',a:22,d:18},{p:'src/services/token.ts',a:210,d:140}] },
+  frontend: { label: 'Frontend',     files: [{p:'web/src/hooks/useSession.ts',a:32,d:24},{p:'web/src/components/Login.tsx',a:18,d:12}] },
+  tests:    { label: 'Tests',        files: [{p:'tests/auth.spec.ts',a:212,d:88},{p:'tests/integration/session.spec.ts',a:184,d:0}] },
+  perf:     { label: 'Performance',  files: [{p:'src/cache/session-cache.ts',a:64,d:18}] },
+  infra:    { label: 'Infra',        files: [{p:'.github/workflows/ci.yml',a:8,d:4},{p:'docker/api.Dockerfile',a:6,d:2}] },
+  docs:     { label: 'Docs',         files: [{p:'docs/auth.md',a:120,d:84},{p:'CHANGELOG.md',a:8,d:0}] },
+};
+
+let activeLens = 'Backend';
+let activeFilters = new Set(Object.keys(CATEGORIES));
+let openChats = []; // [{prId, prNum, title, messages}]
+let activeChat = null;
+let chatOpen = false;
+
+/* ────────── Render: dashboard ────────── */
+function renderDashboard() {
+  const list = document.getElementById('prList');
+  const sorted = [...PRS].sort((a,b) => (b.relevance[activeLens]||0) - (a.relevance[activeLens]||0));
+  list.innerHTML = sorted.map(pr => `
+    <div class="pr-row" onclick="openPR(${pr.id})">
+      <div class="pr-status ${pr.status}"></div>
+      <div>
+        <div class="pr-meta-line">
+          <span class="pr-title">${pr.title}</span>
+          <span class="pr-num mono">${pr.repo}#${pr.id}</span>
+        </div>
+        <div class="pr-sub">
+          <span>by ${pr.author} · ${pr.age} ago · +${pr.adds} −${pr.dels}</span>
+          <span class="pr-cats">${pr.cats.map(c=>`<span class="badge ${c}">${CATEGORIES[c].label}</span>`).join('')}</span>
+        </div>
+      </div>
+      <div class="pr-relevance" title="Relevance to ${activeLens} lens">
+        ${pr.relevance[activeLens]}%
+        <div class="relevance-bar"><div class="relevance-fill" style="width:${pr.relevance[activeLens]}%"></div></div>
+      </div>
+      <div class="pr-concerns">${pr.concerns ? `<span class="num">${pr.concerns}</span> concerns` : 'clean'}</div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+    </div>
+  `).join('');
+}
+
+/* ────────── Render: PR detail ────────── */
+function renderDetail(prId) {
+  const pr = PRS.find(p => p.id === prId);
+  document.getElementById('prTitle').textContent = pr.title;
+  document.getElementById('prNum').textContent = `${pr.repo} #${pr.id}`;
+  document.getElementById('crumbs').innerHTML = `Inbox / <span>${pr.repo} #${pr.id}</span>`;
+  document.getElementById('lensBanner').innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+    <span><b>${activeLens}</b> lens active. Sections reordered to surface what matters to you first.</span>
+  `;
+  renderChips();
+  renderSections(pr);
+}
+
+function renderChips() {
+  const row = document.getElementById('chipRow');
+  const chips = Object.keys(CATEGORIES).map(k => {
+    const active = activeFilters.has(k);
+    return `<div class="chip ${active?'active':'muted'}" onclick="toggleFilter('${k}')"><span class="chip-dot"></span>${CATEGORIES[k].label}</div>`;
+  }).join('');
+  row.innerHTML = `<span class="label">Filter</span>${chips}<button class="btn sm ghost" onclick="resetFilters()" style="margin-left:auto;">Reset</button>`;
+}
+
+function renderSections(pr) {
+  const order = LENS_ORDER[activeLens];
+  const ordered = order.filter(c => activeFilters.has(c));
+  const container = document.getElementById('sections');
+  container.innerHTML = ordered.map((cat, idx) => {
+    const def = CATEGORIES[cat];
+    const isHot = def.priority === 'hot';
+    const collapsed = idx > 2 ? ' collapsed' : '';
+    const inlineComponent = (cat === 'security' && activeLens === 'Security') || (cat === 'backend' && activeLens === 'Backend') || (cat === 'database' && activeLens === 'Database')
+      ? renderInlineBlastRadius(cat) : '';
+    return `
+      <div class="section${collapsed}" data-cat="${cat}">
+        <div class="section-head" onclick="toggleSection(this)">
+          <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          <span class="badge ${cat}">${def.label}</span>
+          <span class="count">${def.files.length} file${def.files.length>1?'s':''}</span>
+          <span class="priority ${isHot?'hot':''}">${idx===0?'Top priority for '+activeLens:isHot?'Needs attention':''}</span>
+        </div>
+        <div class="section-body">
+          ${def.files.map(f => `
+            <div class="file-row">
+              <span class="path">${f.p}</span>
+              <span class="stats"><span class="add">+${f.a}</span><span class="del">−${f.d}</span></span>
+              <button class="btn sm ghost">View diff</button>
+            </div>
+          `).join('')}
+          ${inlineComponent}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderInlineBlastRadius(cat) {
+  return `
+    <div class="agent-component">
+      <h4>Blast radius — files in this section</h4>
+      <div class="sankey">
+        <svg class="sankey-svg" viewBox="0 0 600 200" preserveAspectRatio="none">
+          <path d="M180,30 C300,30 300,30 420,30" stroke-width="6"/>
+          <path class="hot" d="M180,60 C300,60 300,90 420,90" stroke-width="8"/>
+          <path d="M180,90 C300,90 300,30 420,30" stroke-width="3"/>
+          <path d="M180,120 C300,120 300,150 420,150" stroke-width="4"/>
+          <path d="M180,150 C300,150 300,90 420,90" stroke-width="2"/>
+        </svg>
+        <div class="sankey-col">
+          <h5>Changed</h5>
+          <div class="sankey-node hot">session.ts</div>
+          <div class="sankey-node">cookie.ts</div>
+          <div class="sankey-node">csrf.ts</div>
+          <div class="sankey-node">token.ts</div>
+        </div>
+        <div class="sankey-col">
+          <h5>Modules</h5>
+          <div class="sankey-node">auth/</div>
+          <div class="sankey-node hot">middleware/</div>
+          <div class="sankey-node">cache/</div>
+        </div>
+        <div class="sankey-col">
+          <h5>Downstream</h5>
+          <div class="sankey-node">/login</div>
+          <div class="sankey-node hot">/charge</div>
+          <div class="sankey-node">/me</div>
+          <div class="sankey-node">SDK clients</div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:8px;">Edge thickness ≈ call frequency in last 7 days. <b style="color:var(--danger)">Hot path</b>: session.ts → middleware/ → /charge.</div>
+    </div>
+  `;
+}
+
+/* ────────── Interactions ────────── */
+function openPR(id) {
+  const pr = PRS.find(p => p.id === id);
+  document.getElementById('dashView').classList.add('hidden');
+  document.getElementById('detailView').classList.remove('hidden');
+  renderDetail(id);
+
+  if (!openChats.find(c => c.prId === id)) {
+    openChats.push({
+      prId: id,
+      prNum: `${pr.repo}#${id}`,
+      title: pr.title,
+      status: 'idle',
+      messages: [
+        { role: 'agent', text: `Hey — I've scanned <b>${pr.repo}#${id}</b> for the <b>${activeLens}</b> lens. Ask me anything: blast radius, ownership, risk, "explain this change," or "is it safe to ship."` }
+      ]
+    });
+  }
+  activeChat = id;
+  renderDock();
+}
+
+function showDashboard() {
+  document.getElementById('detailView').classList.add('hidden');
+  document.getElementById('dashView').classList.remove('hidden');
+  document.getElementById('crumbs').textContent = 'Inbox';
+  renderDashboard();
+}
+
+function toggleSection(head) { head.parentElement.classList.toggle('collapsed'); }
+
+function toggleFilter(cat) {
+  if (activeFilters.has(cat)) activeFilters.delete(cat);
+  else activeFilters.add(cat);
+  renderChips();
+  if (!document.getElementById('detailView').classList.contains('hidden')) {
+    const pr = PRS.find(p => p.id === activeChat);
+    if (pr) renderSections(pr);
+  }
+}
+function resetFilters() {
+  activeFilters = new Set(Object.keys(CATEGORIES));
+  renderChips();
+  if (!document.getElementById('detailView').classList.contains('hidden')) {
+    const pr = PRS.find(p => p.id === activeChat);
+    if (pr) renderSections(pr);
+  }
+}
+
+/* Lens switcher */
+document.getElementById('lensBtn').onclick = (e) => {
+  e.stopPropagation();
+  document.getElementById('lensPopover').classList.toggle('open');
+};
+document.addEventListener('click', () => document.getElementById('lensPopover').classList.remove('open'));
+document.querySelectorAll('.popover .opt').forEach(opt => {
+  opt.onclick = (e) => {
+    e.stopPropagation();
+    activeLens = opt.dataset.lens;
+    document.getElementById('lensTag').textContent = activeLens;
+    document.querySelectorAll('.popover .opt').forEach(o => o.classList.toggle('active', o === opt));
+    document.getElementById('lensPopover').classList.remove('open');
+    if (!document.getElementById('dashView').classList.contains('hidden')) renderDashboard();
+    else { const pr = PRS.find(p => p.id === activeChat); if (pr) renderDetail(pr.id); }
+  };
+});
+
+/* ────────── Chat dock ────────── */
+function renderDock() {
+  const tabs = document.getElementById('dockTabs');
+  tabs.innerHTML = openChats.map(c => `
+    <div class="dock-tab ${activeChat===c.prId && chatOpen ? 'active':''}" onclick="focusChat(${c.prId})">
+      <span class="dot ${c.status}"></span>
+      <span>${c.prNum}</span>
+      <span class="close" onclick="event.stopPropagation(); closeChat(${c.prId})">×</span>
+    </div>
+  `).join('');
+
+  if (chatOpen && activeChat) {
+    const c = openChats.find(x => x.prId === activeChat);
+    document.getElementById('chatPanel').style.display = 'block';
+    document.getElementById('chatPanel').innerHTML = renderChat(c);
+    const body = document.querySelector('.chat-body');
+    if (body) body.scrollTop = body.scrollHeight;
+  } else {
+    document.getElementById('chatPanel').style.display = 'none';
+  }
+}
+
+function renderChat(c) {
+  return `
+    <div class="chat">
+      <div class="chat-head">
+        <div class="ctx">
+          <div class="ctx-pr">${c.prNum} · ${activeLens} lens</div>
+          <div class="ctx-title">${c.title}</div>
+        </div>
+        <button class="icon-btn" onclick="chatOpen=false; renderDock()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="chat-body">
+        ${c.messages.map(m => renderMsg(m)).join('')}
+      </div>
+      <div class="chat-suggest">
+        <div class="sug" onclick="ask('What does this PR touch?')">What does this PR touch?</div>
+        <div class="sug" onclick="ask('Who owns these files?')">Who owns these files?</div>
+        <div class="sug" onclick="ask('Should I be worried?')">Should I be worried?</div>
+        <div class="sug" onclick="ask('Explain the auth change')">Explain the auth change</div>
+      </div>
+      <form class="chat-input" onsubmit="event.preventDefault(); const t = this.querySelector('textarea'); if (t.value.trim()) { ask(t.value); t.value=''; }">
+        <textarea placeholder="Ask anything about this PR…" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
+        <button class="send" type="submit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+        </button>
+      </form>
+    </div>
+  `;
+}
+
+function renderMsg(m) {
+  const av = m.role === 'agent' ? '<div class="av">L</div>' : '<div class="av">iz</div>';
+  let body = '';
+  if (m.text) body += `<div class="bubble"><p>${m.text}</p></div>`;
+  if (m.component) body += `<div class="bubble">${renderAgentComponent(m.component)}</div>`;
+  return `<div class="msg ${m.role}">${av}<div>${body}</div></div>`;
+}
+
+function renderAgentComponent(comp) {
+  if (comp.type === 'risk') {
+    return `<div class="msg-component"><h5>Risk summary</h5>
+      ${comp.items.map(i => `<div class="risk-item"><span class="level ${i.level}"></span>${i.text}</div>`).join('')}
+    </div>`;
+  }
+  if (comp.type === 'owners') {
+    return `<div class="msg-component"><h5>Owners on the changed paths</h5>
+      ${comp.list.map(o => `<div class="owner-card"><div class="av"></div><div class="meta"><div class="name">${o.name}</div><div class="role">${o.role} · last touched ${o.last}</div></div><button class="btn sm">Ping</button></div>`).join('')}
+    </div>`;
+  }
+  if (comp.type === 'blast') {
+    return `<div class="msg-component"><h5>Blast radius</h5>
+      <div class="sankey" style="grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div class="sankey-col"><h5>Changed</h5>
+          <div class="sankey-node hot">session.ts</div>
+          <div class="sankey-node">token.ts</div>
+        </div>
+        <div class="sankey-col"><h5>Modules</h5>
+          <div class="sankey-node hot">middleware/</div>
+          <div class="sankey-node">cache/</div>
+        </div>
+        <div class="sankey-col"><h5>Downstream</h5>
+          <div class="sankey-node hot">/charge</div>
+          <div class="sankey-node">/login</div>
+          <div class="sankey-node">/me</div>
+        </div>
+      </div>
+      <div class="note" style="margin-top:6px;">3 endpoints, 2 modules, ~14k req/day on the hot path.</div>
+    </div>`;
+  }
+  return '';
+}
+
+function focusChat(prId) {
+  activeChat = prId;
+  chatOpen = true;
+  const c = openChats.find(x => x.prId === prId);
+  if (c) c.status = 'idle';
+  renderDock();
+}
+function closeChat(prId) {
+  openChats = openChats.filter(c => c.prId !== prId);
+  if (activeChat === prId) { activeChat = openChats[0]?.prId || null; chatOpen = !!activeChat && chatOpen; }
+  renderDock();
+}
+
+document.getElementById('fab').onclick = () => {
+  if (!openChats.length) return;
+  chatOpen = !chatOpen;
+  if (chatOpen && !activeChat) activeChat = openChats[0].prId;
+  renderDock();
+};
+
+/* Fake agent responses */
+function ask(text) {
+  if (!activeChat) return;
+  const c = openChats.find(x => x.prId === activeChat);
+  c.messages.push({ role: 'user', text });
+  c.status = 'processing';
+  renderDock();
+  setTimeout(() => {
+    const reply = fakeAnswer(text);
+    c.messages.push(reply);
+    c.status = chatOpen ? 'idle' : 'unread';
+    renderDock();
+  }, 700);
+}
+
+function fakeAnswer(q) {
+  const ql = q.toLowerCase();
+  if (ql.includes('blast') || ql.includes('touch') || ql.includes('affect')) {
+    return { role: 'agent', text: `This change reaches <b>3 endpoints</b> across <b>2 modules</b>. Hot path is the charge endpoint — ~14k req/day flow through the modified middleware.`, component: { type: 'blast' } };
+  }
+  if (ql.includes('own') || ql.includes('who')) {
+    return { role: 'agent', text: `Three owners across the changed paths:`, component: { type: 'owners', list: [
+      { name: 'maria.l', role: 'auth squad lead', last: '4d ago' },
+      { name: 'kai.m',   role: 'middleware owner', last: '2w ago' },
+      { name: 'priya.k', role: 'platform on-call', last: '1d ago' },
+    ]}};
+  }
+  if (ql.includes('worried') || ql.includes('safe') || ql.includes('risk') || ql.includes('ship')) {
+    return { role: 'agent', text: `From the <b>${activeLens}</b> lens, here's how I'd score it:`, component: { type: 'risk', items: [
+      { level: 'high', text: 'Cookie SameSite default changed from Lax → Strict — verify SSO flows still work.' },
+      { level: 'med',  text: 'Migration is non-additive; rollback requires data backfill.' },
+      { level: 'low',  text: 'Test coverage on auth.spec increased (+24 cases).' },
+    ]}};
+  }
+  if (ql.includes('explain') || ql.includes('auth')) {
+    return { role: 'agent', text: `The PR moves session tokens from in-memory cookies to a Redis-backed store with rotating refresh tokens. Old behavior: token signed and stored client-side; lifetime 7d. New behavior: opaque session id in cookie, server holds the JWT in Redis, rotated every 24h. This addresses the legal/compliance ask flagged earlier this quarter.` };
+  }
+  return { role: 'agent', text: `Got it. Looking at "<i>${q}</i>" through the <b>${activeLens}</b> lens — give me a sec, I'd normally call a tool here. (This is a prototype; wire me to the agent runtime to get real answers.)` };
+}
+
+/* ────────── Boot ────────── */
+renderDashboard();
+renderDock();
+</script>
+</body>
+</html>
+</content>
+</invoke>

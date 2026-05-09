@@ -1,13 +1,12 @@
-"""Switchable runtime factory for the lead-triage agent.
+"""Switchable runtime factory for the PR review agent.
 
 Selects one of three configurations based on `AGENT_RUNTIME` so we can
-side-by-side benchmark Gemini-Flash-Lite-deepagents vs. Gemini-Flash-Lite-react
+benchmark Gemini-Flash-Lite-deepagents vs. Gemini-Flash-Lite-react
 vs. Claude-Sonnet-4.6-react without a code edit.
 
 Every runtime keeps the same middleware chain — `TimingMiddleware` first
-(outermost) so it sees every inner model/tool call, then `LeadStateMiddleware`
-to contribute the canvas-state TypedDict, and `CopilotKitMiddleware` for
-AG-UI / CopilotKit interop.
+(outermost) so it sees every inner model/tool call, then
+`CopilotKitMiddleware` for AG-UI / CopilotKit interop.
 
 Anthropic deps are imported lazily so a missing `ANTHROPIC_API_KEY` only
 breaks the Claude runtime — the Gemini runtimes still boot.
@@ -22,7 +21,6 @@ from langgraph.graph.state import CompiledStateGraph
 
 from copilotkit import CopilotKitMiddleware
 
-from .lead_state import LeadStateMiddleware
 from .timing import TimingMiddleware
 
 
@@ -63,10 +61,9 @@ def build_graph(
         runtime: One of `gemini-flash-deep`, `gemini-flash-react`,
             `claude-sonnet-4-6-react`. Anything else falls back to
             `gemini-flash-deep` with a warning.
-        tools: Notion-MCP-backed + local backend tools to bind. Frontend
-            tools are forwarded by `CopilotKitMiddleware` at run time and
-            must NOT appear here (Gemini rejects duplicate function
-            declarations).
+        tools: Backend tools to bind. Frontend tools are forwarded by
+            `CopilotKitMiddleware` at run time and must NOT appear here
+            (Gemini rejects duplicate function declarations).
         system_prompt: Already-composed system prompt (with the integration
             status block from phase 01 baked in).
     """
@@ -79,9 +76,8 @@ def build_graph(
         runtime = "gemini-flash-deep"
 
     timing = TimingMiddleware()
-    lead_state = LeadStateMiddleware()
     copilotkit = CopilotKitMiddleware()
-    middleware = [timing, lead_state, copilotkit]
+    middleware = [timing, copilotkit]
 
     if runtime == "noop":
         return _build_noop(NOOP_FALLBACK_MESSAGE)
