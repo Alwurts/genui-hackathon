@@ -287,7 +287,7 @@ export default function DashboardPage() {
         {/* Sidebar top — height-matched to topbar */}
         <div className="flex items-center gap-2 px-5 border-b border-border" style={{ height: 52, flexShrink: 0 }}>
           <div className="rounded" style={{ width: 18, height: 18, backgroundColor: "#BEC2FF", flexShrink: 0 }} />
-          <span className="font-bold text-sm text-foreground">Lens</span>
+          <span className="font-bold text-sm text-foreground">Team Reviewers</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
