@@ -2,6 +2,12 @@
 
 ![Hackathon Banner](apps/frontend/public/banner.jpg)
 
+> **This fork (genui-hackathon) is the lens-driven PR review project.**
+> Project-specific docs live in [`docs/`](docs/):
+> [idea](docs/idea.md) · [architecture](docs/architecture.md) ·
+> [build plan](docs/plan.md) · **[setup / keys](docs/setup.md)** · [event](docs/event.md).
+> The rest of this README is the upstream starter kit's documentation.
+
 Welcome to the **Generative UI Global Hackathon: Agentic Interfaces**! This starter kit gives you a complete AI-powered application with durable conversation threads, an agent-driven canvas, real-world MCP integrations, and a deployable MCP App — wired up with CopilotKit, LangChain Deep Agents, Gemini, A2UI, Notion MCP (via mcp-use), Manufact, and Daytona.
 
 ## About this starter
