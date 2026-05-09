@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Toaster, toast } from "sonner";
 import {
   CopilotChatConfigurationProvider,
@@ -43,24 +44,26 @@ function mergeAgentState(raw: unknown): AgentState {
 
 // ---- canvas inner ----------------------------------------------------------
 
-function CanvasInner() {
+function CanvasInner({ prUrl }: { prUrl: string | null }) {
   const { agent } = useAgent();
   const { copilotkit } = useCopilotKit();
+
+  const reviewMessage = prUrl
+    ? `Review ${prUrl} using the Architecture lens.`
+    : "Review the demo PR using the Architecture lens.";
+  const reviewTitle = prUrl ? "Review this PR" : "Review the demo PR";
 
   useConfigureSuggestions({
     available: "before-first-message",
     suggestions: [
-      {
-        title: "Review the demo PR",
-        message: "Review the demo PR using the Architecture lens.",
-      },
+      { title: reviewTitle, message: reviewMessage },
       {
         title: "Money lens",
-        message: "Re-score the demo PR under the Money / Risk lens.",
+        message: "Re-score this PR under the Money / Risk lens.",
       },
       {
         title: "Tests lens",
-        message: "Re-score the demo PR under the Tests / Quality lens.",
+        message: "Re-score this PR under the Tests / Quality lens.",
       },
     ],
   });
@@ -190,18 +193,38 @@ function CanvasInner() {
         {!state.pr ? (
           <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
             <div className="max-w-md text-sm text-muted-foreground">
-              <p>
-                Ask the assistant to{" "}
-                <span className="font-mono text-foreground">
-                  review the demo PR
-                </span>{" "}
-                in the chat sidebar.
-              </p>
-              <p className="mt-2 text-xs">
-                The agent loads a hand-crafted demo PR, scores every diff hunk
-                under the chosen lens, and populates this canvas via tool
-                calls.
-              </p>
+              {prUrl ? (
+                <>
+                  <p>
+                    Ready to review{" "}
+                    <span className="break-all font-mono text-foreground">
+                      {prUrl}
+                    </span>
+                    .
+                  </p>
+                  <p className="mt-2 text-xs">
+                    Open the chat sidebar and click{" "}
+                    <span className="font-mono">Review this PR</span> — the
+                    agent fetches the diff from GitHub, scores every hunk under
+                    the chosen lens, and populates this canvas.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Ask the assistant to{" "}
+                    <span className="font-mono text-foreground">
+                      review the demo PR
+                    </span>{" "}
+                    in the chat sidebar.
+                  </p>
+                  <p className="mt-2 text-xs">
+                    The agent loads a hand-crafted demo PR, scores every diff
+                    hunk under the chosen lens, and populates this canvas via
+                    tool calls.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -256,6 +279,8 @@ function CanvasInner() {
 
 function HomePage() {
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
+  const searchParams = useSearchParams();
+  const prUrl = searchParams.get("pr");
   return (
     <div className={drawerStyles.layout}>
       <ThreadsDrawer
@@ -265,7 +290,7 @@ function HomePage() {
       />
       <div className={drawerStyles.mainPanel}>
         <CopilotChatConfigurationProvider agentId="default" threadId={threadId}>
-          <CanvasInner />
+          <CanvasInner prUrl={prUrl} />
         </CopilotChatConfigurationProvider>
       </div>
     </div>
@@ -275,7 +300,9 @@ function HomePage() {
 export default function Page() {
   return (
     <ClientOnly>
-      <HomePage />
+      <Suspense fallback={null}>
+        <HomePage />
+      </Suspense>
     </ClientOnly>
   );
 }
