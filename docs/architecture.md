@@ -1,69 +1,141 @@
-# Architecture — mapping the idea onto the starter
+# Architecture — lens-driven PR review on the starter
 
-The starter ships a **Notion Leads** demo. We're swapping that domain out for **GitHub PR Review** while keeping the four-service shape (frontend / bff / agent / mcp) and the protocols that make the demo work.
+The starter ships a Notion-Leads demo. We swap **domain only** — keep the four-service shape, the deep-agent runtime, the CopilotKit shared-state pattern, the dual-MCP layout, all three GenUI tiers.
 
-## Service responsibilities (after swap)
+## Service map (post-swap)
 
-| Service | Role |
+| Service | Role | Reuse vs change |
+|---|---|---|
+| `apps/frontend` | Next.js + CopilotKit. Canvas + chat sidebar. | Keep chrome (`copilot/`, `threads-drawer/`, `ui/`). Replace `app/leads/` + `components/leads/` with `app/review/` + `components/review/`. |
+| `apps/bff` | Hono BFF. Bridges chat → agent and serves CopilotKit runtime. | Unchanged (env URLs already correct). |
+| `apps/agent` | Python LangGraph deep agent. | Replace lead-domain modules; keep `runtime.py`, `timing.py`, `intelligence_cleanup.py`. |
+| `apps/mcp` | TS `mcp-use` server. Exposes our review system as an MCP server (track-4 anchor) + tier-3 drill-in widget. | Replace `lib/leads/` with `lib/review/`. Keep `components/Frame.tsx`. |
+
+## Canvas state contract
+
+Lives in CopilotKit shared state (`useAgent()`); agent calls frontend tools to mutate.
+
+```ts
+type ReviewState = {
+  pr: { url, title, author, base, head, files_changed, additions, deletions } | null
+  lens: { id, name, instruction, boost_keywords } | null
+
+  scores: {
+    summary: string
+    perFile: { path, max_score, avg_score, hunk_count }[]
+    perHunk: {
+      hunk_id, file, line_start, line_end,
+      score: 0..10, reasons: string, tags: string[]
+    }[]
+    crossCutting?: { title, files: string[], why }[]   // optional
+    status: 'idle' | 'scoring' | 'error'
+  } | null
+
+  diff: {
+    files: { path, hunks: { hunk_id, header, lines: { type, content }[] }[] }[]
+  } | null
+
+  ui: { selectedHunkId?: string, expandedFiles: string[], showLowScoreHunks: boolean }
+}
+```
+
+Scores are **replaced** on lens switch (not merged). Diff lives in canvas state so re-renders under different lenses don't refetch from GitHub.
+
+## Frontend tools (declared in React via `useFrontendTool`)
+
+| Tool | Effect on `ReviewState` |
 |---|---|
-| `apps/frontend` | Next.js + CopilotKit UI. Renders the canvas (graph + heatmap + risk panel) and the chat side panel. |
-| `apps/bff` | Hono BFF. Bridges chat → agent (LangGraph) and serves CopilotKit's runtime. Routes MCP tool calls. |
-| `apps/agent` | Python LangGraph "deep agent". Plans the review, fetches PR data via tools, runs the risk pass, emits A2UI updates back to the canvas. |
-| `apps/mcp` | TypeScript `mcp-use` server. Exposes MCP tools (GitHub: get_pr, get_diff, post_comment, approve, request_changes) and MCP-Apps widgets. |
+| `setPR(pr)` | replace `state.pr` |
+| `setDiff(diff)` | replace `state.diff` |
+| `setLens(lens)` | replace `state.lens`, set `state.scores.status = 'scoring'` |
+| `setScores(scores)` | replace `state.scores`, status `idle` |
+| `setSummary(text)` | streamable into `state.scores.summary` |
+| `setScoringStatus(status)` | progress flag |
+| `highlightHunks(ids)` | UI emphasis (visual only) |
+| `selectHunk(id)` | open drill-in panel |
+| `setShowLowScoreHunks(bool)` | collapse/expand low-importance hunks |
+
+## Agent tools (Python, registered with `create_deep_agent(tools=[...])`)
+
+**GitHub (direct REST via `httpx` + PAT — no MCP wrapper):**
+- `fetch_pr(url) -> PR` — metadata + file list
+- `fetch_pr_files(pr) -> Files` — patches per file (parsed locally into hunks)
+- `post_review_comment(pr, file, line, body)` — inline PR comment
+- `submit_review(pr, decision, summary)` — `approve` | `request_changes` | `comment`
+
+**Internal:**
+- `score_pr_under_lens(pr_data, lens) -> HunkScores` — single batched call to **Gemini 3 Pro Preview** with `response_schema` returning per-hunk scores. The expensive call.
+- `compile_lens_from_text(description) -> Lens` — small Flash-Lite call producing `{instruction, boost_keywords}`. Used for custom lens path.
+- `drill_into_hunk(hunk, lens) -> Explanation` — deeper reasoning pass on click. Stretch.
+
+Model selection is in code, not env (`apps/agent/src/scoring.py` imports the Pro client directly). Only API keys go in `.env`.
+
+## Custom MCP server (`apps/mcp/`)
+
+The review brain is exposed as an MCP server so external clients (Claude Desktop, ChatGPT) can call it. Tools:
+
+- `analyze_pr(url, lens)` — full pipeline: fetch + score + summary
+- `score_hunks(pr_id, lens)` — scoring only
+- `get_review_summary(pr_id, lens)` — final summary
+
+Plus the tier-3 GenUI surface — the **drill-in widget** rendered via mcp-use widget convention (uses `Frame.tsx`).
 
 ## File-level swap plan
 
-### Keep (infrastructure — do not touch)
-- `apps/bff/src/server.ts` — Hono routes; only the upstream URLs change (already correct).
-- `apps/frontend/src/app/layout.tsx`, `globals.css` — chrome.
-- `apps/frontend/src/components/copilot/`, `threads-drawer/`, `ui/` — chat panel + threads + primitives.
-- `deployment/`, `scripts/`, `.env` plumbing — fully reused.
+### Keep (touch only if necessary)
+- `apps/bff/src/server.ts`, deployment, scripts, env plumbing.
+- `apps/frontend/src/app/layout.tsx`, `globals.css`.
+- `apps/frontend/src/components/copilot/`, `threads-drawer/`, `ui/`.
+- `apps/agent/src/{runtime,timing,intelligence_cleanup}.py`.
+- `apps/mcp/src/components/Frame.tsx`.
 
 ### Replace (domain code)
-| Notion-Leads file | Becomes | Notes |
+| Old | New | Notes |
 |---|---|---|
-| `apps/agent/src/lead_state.py` | `apps/agent/src/review_state.py` | TypedDict for PR + files + risk findings |
-| `apps/agent/src/lead_store.py` | `apps/agent/src/review_store.py` | In-mem store of analyses keyed by PR URL |
-| `apps/agent/src/canvas.py` | `apps/agent/src/canvas.py` (rewrite) | A2UI emitters: `graph_update`, `risk_update`, `findings_update` |
-| `apps/agent/src/notion_integration.py` | `apps/agent/src/github_integration.py` | Octokit-style fetch via PAT |
-| `apps/agent/src/notion_mcp.py` | `apps/agent/src/github_mcp.py` | Wires the MCP tools the agent calls |
-| `apps/agent/src/notion_tools.py` | `apps/agent/src/github_tools.py` | `get_pr`, `get_diff`, `post_comment`, `approve`, `request_changes` |
-| `apps/agent/src/prompts.py` | (rewrite) | Planner + risk-pass prompts |
-| `apps/agent/src/runtime.py` | (light edit) | Same deep-agent shape, new system prompt + tools |
-| `apps/frontend/src/app/leads/` | `apps/frontend/src/app/review/` | Canvas page; redirect `/` → `/review` |
-| `apps/frontend/src/components/leads/` | `apps/frontend/src/components/review/` | `<DependencyGraph>`, `<RiskHeatmap>`, `<FindingPanel>` |
-| `apps/mcp/src/lib/leads/` | `apps/mcp/src/lib/review/` | MCP tool handlers + widget render fns |
-| `apps/mcp/src/components/Frame.tsx` | reuse | Generic widget frame is domain-agnostic |
+| `apps/agent/src/lead_state.py` | `review_state.py` | TypedDict matching `ReviewState` |
+| `apps/agent/src/lead_store.py` | `review_store.py` | In-mem cache keyed by PR URL |
+| `apps/agent/src/notion_integration.py` | (delete) | direct API instead |
+| `apps/agent/src/notion_mcp.py` | (delete) | no external GitHub MCP |
+| `apps/agent/src/notion_tools.py` | `github_api.py` | `fetch_pr`, `fetch_pr_files`, `post_review_comment`, `submit_review` |
+| (new) | `scoring.py` | `score_pr_under_lens`, `compile_lens_from_text` |
+| (new) | `lenses.py` | three preset definitions |
+| `apps/agent/src/canvas.py` | rewrite | doc the React-side frontend-tool contract |
+| `apps/agent/src/prompts.py` | rewrite | review-domain system prompt + scoring prompt template |
+| `apps/frontend/src/app/leads/` | `apps/frontend/src/app/review/` | canvas page; redirect `/` → `/review` |
+| `apps/frontend/src/components/leads/` | `apps/frontend/src/components/review/` | `<PRHeader>`, `<LensSwitcher>`, `<FilesRail>`, `<HunkCard>`, `<LensSummaryCard>` |
+| `apps/frontend/src/lib/leads/` | `apps/frontend/src/lib/review/` | `types.ts`, `state.ts`, `derive.ts` |
+| `apps/mcp/src/lib/leads/` | `apps/mcp/src/lib/review/` | MCP tool handlers + drill-in widget |
 
 ### New
-- `apps/frontend/src/components/review/DependencyGraph.tsx` — react-flow + dagre, takes A2UI `graph_update`.
-- `apps/frontend/src/components/review/RiskHeatmap.tsx` — file tree coloured by risk score.
-- `apps/frontend/src/components/review/FindingPanel.tsx` — list of findings with action buttons that call MCP tools.
-- `apps/agent/src/risk_pass.py` — single LLM call: input = file diff + nearby code, output = `{risk, why, blocking_invariant}`.
+- `apps/frontend/src/components/review/LensSummaryCard.tsx` — A2UI declarative renderer (tier 2).
+- `apps/frontend/src/components/review/DrillInPanel.tsx` — embeds the MCP App iframe (tier 3).
+- `apps/agent/src/lenses.py` — three preset Lens objects.
+- `apps/agent/src/scoring.py` — Gemini 3 Pro client; structured-output schema; batched call.
 
-## Protocol surfaces (where each one shows up)
+## Env vars (additions)
 
-- **A2UI** — `canvas.py` emits three update types (`graph_update`, `risk_update`, `findings_update`). Frontend has one renderer per type. New PR = new graph topology = A2UI re-render, not a fixed dashboard.
-- **AG-UI** — clicking a node in the graph sends `{action: "rescope", file: "..."}` upstream. The agent picks it up mid-thread and re-runs the risk pass on a narrower scope. Same channel as the chat.
-- **MCP Apps** — the FindingPanel widget is rendered by the MCP server (`apps/mcp/src/lib/review/`). Buttons inside it call back into MCP tools without going through the agent.
-- **MCP tools** — exposed by `apps/mcp/src/lib/review/tools.ts`: `github_get_pr`, `github_get_diff`, `github_post_comment`, `github_approve`, `github_request_changes`. Agent calls them; widget buttons also call them directly for fast actions.
-
-## Env vars to add
 ```
-GITHUB_PAT=ghp_xxx                # repo + PR comment scope
+GITHUB_PAT=ghp_xxx                          # repo + PR comment scope
 GITHUB_DEMO_PR=https://github.com/owner/repo/pull/123
+# (no GEMINI_SCORING_MODEL — selection is in code)
 ```
 
-## What the canvas looks like
+## Canvas layout
+
 ```
-+--------------------------------------------------+ +-------------+
-|                                                  | |             |
-|        DependencyGraph (react-flow + dagre)      | |  Chat panel |
-|                                                  | |             |
-|                                                  | |  (CopilotKit|
-+--------------------------------------------------+ |   sidebar)  |
-| RiskHeatmap (file tree, colour-coded)            | |             |
-+--------------------------------------------------+ |             |
-| FindingPanel (list, actions: approve / comment)  | |             |
-+--------------------------------------------------+ +-------------+
++-------------------------------------------------+ +-----------+
+| <PRHeader>                                      | |           |
++-------------------------------------------------+ |  Chat     |
+| <LensSwitcher>  [Money] [Architecture] [Tests]  | |  sidebar  |
++--------+----------------------------------------+ |           |
+|        |                                        | | (CopilotKit)
+| Files  |  <LensSummaryCard>  (A2UI tier 2)      | |           |
+| rail   |                                        | |           |
+| (heat- |  ---- diff body, re-ordered ----       | |           |
+|  map)  |  <HunkCard #1>  expanded, annotated    | |           |
+|        |  <HunkCard #2>  expanded               | |           |
+|        |  <HunkCard #3..>  collapsed            | |           |
++--------+----------------------------------------+ |           |
+| <DrillInPanel>  (MCP App iframe, tier 3)        | |           |
++-------------------------------------------------+ +-----------+
 ```
